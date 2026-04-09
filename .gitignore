@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Output files
+cr_player_data.json
+clash-royale-deck-*.html
+clash-royale-war-decks-*.html
+clash-royale-war-decks-*.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Token
+.cr_token
