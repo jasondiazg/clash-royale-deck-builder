@@ -537,3 +537,201 @@ COPYRIGHT_HTML = """<div class="cr-footer" style="margin-top:24px;padding:16px 1
   <div style="margin-top:6px;">For more information see Supercell's Fan Content Policy: <a href="https://supercell.com/en/fan-content-policy/" style="color:rgba(255,255,255,0.5);text-decoration:underline;">supercell.com/en/fan-content-policy</a></div>
   <div style="margin-top:8px;">&copy; Supercell Oy. Clash Royale, Supercell, and all associated logos and characters are trademarks of Supercell Oy.</div>
 </div>"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Shared deck HTML rendering helpers (used by both war decks and best decks)
+# ═══════════════════════════════════════════════════════════════════════════
+
+SHARED_DECKS_CSS = """
+.cr-shared-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 14px; }
+.cr-shared-card {
+  background: rgba(0,0,0,0.25);
+  border: 1.5px solid rgba(240,176,32,0.3);
+  border-radius: 8px;
+  padding: 6px 14px;
+  display: flex; gap: 8px; align-items: center;
+}
+.cr-shared-name { color: var(--white); font-weight: 700; font-size: 0.82em; }
+.cr-shared-count { color: var(--gold); font-size: 0.7em; font-weight: 700; }
+"""
+
+
+def build_card_map(data: dict) -> dict[str, dict]:
+    """Build a name→card dict with evo/hero flags from player data."""
+    m = {}
+    for c in data.get("cards", []):
+        has_evo, has_hero, hero_info = get_evo_hero(c)
+        m[c["name"]] = {**c, "has_evo": has_evo, "has_hero": has_hero, "hero_info": hero_info}
+    return m
+
+
+def deck_card_html(card: dict, is_enabled: bool, slot_label: str = "",
+                   img_variant: str = "normal") -> str:
+    """Render a single card tile inside a deck panel."""
+    r = card.get("rarity", "unknown").lower()
+    name = escape(card["name"])
+    cost = card.get("elixirCost", "?")
+    pct = level_pct(card)
+    level = f"{card['level']}/{card['maxLevel']}"
+    icon = card_icon_url(card, img_variant)
+    has_evo, has_hero, _ = get_evo_hero(card)
+    is_maxed = card["level"] == card["maxLevel"]
+    cls = f"cr-card r-{r}" + (" enabled" if is_enabled else "")
+    img = (f'<img class="cr-card-img" src="{escape(icon)}" alt="{name}" loading="lazy">'
+           if icon else f'<div class="cr-card-img-ph">{name[0]}</div>')
+    badges = []
+    if has_hero:
+        badges.append('<span class="cr-badge cr-badge-hero">HERO</span>')
+    elif has_evo:
+        badges.append('<span class="cr-badge cr-badge-evo">EVO</span>')
+    if is_maxed:
+        badges.append('<span class="cr-badge cr-badge-max">MAX</span>')
+    if is_enabled and slot_label:
+        badges.append(f'<span class="cr-badge cr-badge-slot">{escape(slot_label)}</span>')
+    return f"""<div class="{cls}"><div class="cr-elixir">{cost}</div>{img}
+  <div class="cr-card-name">{name}</div>
+  <div class="cr-lvl-bar"><div class="cr-lvl-fill" style="width:{pct}%"></div></div>
+  <div class="cr-lvl-text">Lv {level}</div>
+  <div class="cr-badges">{"".join(badges)}</div></div>"""
+
+
+def unused_card_tile(card: dict) -> str:
+    """Render a card tile for the Best Unused Cards section."""
+    r = card.get("rarity", "unknown").lower()
+    name = escape(card["name"])
+    cost = card.get("elixirCost", "?")
+    pct = level_pct(card)
+    level = f"{card['level']}/{card['maxLevel']}"
+    icon = card_icon_url(card, "auto")
+    has_evo, has_hero, _ = get_evo_hero(card)
+    is_maxed = card["level"] == card["maxLevel"]
+    badges = badge_html(has_evo, has_hero, is_maxed)
+    img = (f'<img class="cr-card-img" src="{escape(icon)}" alt="{name}" loading="lazy">'
+           if icon else f'<div class="cr-card-img-ph">{name[0]}</div>')
+    return f"""<div class="cr-card r-{r}"><div class="cr-elixir">{cost}</div>{img}
+  <div class="cr-card-name">{name}</div>
+  <div class="cr-lvl-bar"><div class="cr-lvl-fill" style="width:{pct}%"></div></div>
+  <div class="cr-lvl-text">Lv {level}</div>
+  <div class="cr-badges">{badges}</div></div>"""
+
+
+def render_deck_html(num: int, d: dict, cm: dict) -> str:
+    """Render a full deck panel (header + cards + slots + synergy)."""
+    cards = [cm[n] for n in d["cards"] if n in cm]
+    avg = sum(c.get("elixirCost", 0) for c in cards) / max(len(cards), 1)
+    en = set()
+    sl = {}
+    img_variants = {}
+    for k, lbl in [("enabled_hero", "Hero"), ("enabled_evo", "Evo"), ("enabled_flex", "Flex")]:
+        if d.get(k):
+            en.add(d[k])
+            sl[d[k]] = lbl
+    if d.get("enabled_hero"):
+        img_variants[d["enabled_hero"]] = "hero"
+    if d.get("enabled_evo"):
+        img_variants[d["enabled_evo"]] = "evo"
+    if d.get("enabled_flex"):
+        img_variants[d["enabled_flex"]] = "hero" if d.get("flex_type") == "Hero" else "evo"
+    tiles = "\n".join(
+        deck_card_html(c, c["name"] in en, sl.get(c["name"], ""),
+                       img_variants.get(c["name"], "normal"))
+        for c in cards
+    )
+    syn = "\n".join(f"<li>{escape(n)}</li>" for n in d.get("synergy_notes", []))
+    slots = "\n".join(
+        f'<div class="cr-slot"><span class="cr-slot-label">{lbl} Slot</span>'
+        f' <span class="cr-slot-name">{escape(d[k])}</span></div>'
+        for k, lbl in [("enabled_hero", "Hero"), ("enabled_evo", "Evo"),
+                       ("enabled_flex", "Flex")]
+        if d.get(k)
+    )
+    return f"""<div class="cr-panel">
+  <div class="cr-deck-header">
+    <div class="cr-deck-num">{num}</div>
+    <div class="cr-deck-title-wrap"><div class="cr-deck-title">{escape(d['title'])}</div>
+    <div class="cr-deck-archetype">{escape(d['archetype'])}</div></div>
+    <div class="cr-deck-elixir">{avg:.1f}</div>
+  </div>
+  <div class="cr-deck-strategy">{escape(d['strategy'])}</div>
+  <div class="cr-deck-cards">{tiles}</div>
+  <div class="cr-slots">{slots}</div>
+  <div class="cr-synergy"><h3>Why It Works</h3><ul>{syn}</ul></div>
+</div>"""
+
+
+def analyze_card_text(card: dict) -> dict:
+    """Extract key info from a card for text reports."""
+    max_evo = card.get("maxEvolutionLevel", 0)
+    evo_lv = card.get("evolutionLevel", 0)
+    has_evo = evo_lv >= 1
+    has_hero = max_evo >= 2 and evo_lv >= 2
+    lvl_pct = round(card["level"] / card["maxLevel"] * 100)
+    hero_info = f"Lv {evo_lv - 1}/{max_evo - 1}" if has_hero else ""
+    return {
+        "name": card["name"],
+        "level": f"{card['level']}/{card['maxLevel']}",
+        "level_pct": lvl_pct,
+        "cost": card.get("elixirCost", 0),
+        "rarity": card.get("rarity", "unknown"),
+        "has_evo": has_evo,
+        "has_hero": has_hero,
+        "hero_info": hero_info,
+    }
+
+
+def build_top_cards_text(data: dict, mode: str = "war") -> str:
+    """Build the text report with top cards for deck building reference.
+
+    mode: "war" (no card overlap) or "best" (cards can repeat).
+    """
+    card_map = {}
+    for c in data["cards"]:
+        info = analyze_card_text(c)
+        card_map[info["name"]] = info
+
+    player_name = data["name"]
+    player_tag = data["tag"]
+    heroes = {n: c for n, c in card_map.items() if c["has_hero"]}
+    evos = {n: c for n, c in card_map.items() if c["has_evo"] and not c["has_hero"]}
+
+    title = "WAR DECKS" if mode == "war" else "BEST DECKS"
+    overlap_note = ("Each card used only once across all 4 decks." if mode == "war"
+                    else "Cards CAN repeat across decks (unlike war decks).\n"
+                         "Each deck targets a different archetype.")
+
+    lines = [
+        "=" * 75,
+        f"CLASH ROYALE - {title}",
+        f"Player: {player_name} ({player_tag})",
+        "=" * 75,
+        "Priority: 1) Synergy  2) Card Level  3) Heroes  4) Evos",
+        "Evo/Hero slots: 1 Hero + 1 Evo + 1 Flex (Hero or Evo) = 3 max",
+        "Cards marked [ENABLED] are the 3 active evo/hero slots.",
+        overlap_note,
+        "",
+        "=" * 75,
+        f"NOTE: {title.title()} are built by the agent based on the player's",
+        "card collection, prioritizing synergy, card levels, heroes,",
+        "and evos. Run this script for reference data.",
+        "",
+        f"Player has {len(heroes)} heroes: {', '.join(heroes.keys())}",
+        f"Player has {len(evos)} evos: {', '.join(evos.keys())}",
+        "",
+        "-" * 75,
+        "TOP CARDS BY LEVEL (for deck building reference)",
+        "-" * 75,
+        f"{'Card Name':<25} {'Level':<10} {'Lv%':<6} {'Cost':<6} {'Evo/Hero':<15}",
+        "-" * 75,
+    ]
+
+    sorted_cards = sorted(card_map.values(), key=lambda x: x["level_pct"], reverse=True)
+    for c in sorted_cards[:40]:
+        tag = "HERO+EVO" if c["has_hero"] else ("EVO" if c["has_evo"] else "")
+        lines.append(
+            f"{c['name']:<25} {c['level']:<10} {c['level_pct']}%{'':<3} "
+            f"{c['cost']:<6} {tag:<15}"
+        )
+
+    lines += ["", "=" * 75]
+    return "\n".join(lines)

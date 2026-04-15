@@ -75,3 +75,26 @@ Each card can only appear in ONE of the 4 war decks.
 2. Card Level: Higher level cards preferred
 3. Heroes: Use hero-unlocked cards in hero/flex slots
 4. Evos: Use evo-unlocked cards in evo/flex slots
+
+## Best Deck Building Rules
+
+### Cards May Repeat
+Unlike war decks, the same card CAN appear in multiple best decks. This allows
+building the strongest possible deck for each archetype without worrying about
+card availability across decks.
+
+### Different Archetypes Required
+Each of the 4 best decks MUST use a different archetype (e.g., Beatdown, Bait,
+Bridge Spam, Cycle). The goal is variety in playstyle, not card uniqueness.
+
+### Evo/Hero Slot Rules (same as war decks)
+- 1 Hero slot (dedicated)
+- 1 Evo slot (dedicated)
+- 1 Flex slot (Hero OR Evo)
+- Total: 3 enabled evo/hero cards per deck
+
+### Priority Order (same as war decks)
+1. Synergy: Build a coherent archetype first
+2. Card Level: Higher level cards preferred
+3. Heroes: Use hero-unlocked cards in hero/flex slots
+4. Evos: Use evo-unlocked cards in evo/flex slots

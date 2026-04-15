@@ -1,20 +1,20 @@
 ---
 name: clash-royale-deck-builder
-description: "This skill fetches and analyzes a Clash Royale player's full card collection via the official API, generates formatted card deck reports, and builds optimized war decks with synergy-first strategy. This skill should be used when the user mentions 'Clash Royale', 'CR deck', 'war decks', 'card collection', 'clash royale cards', or 'CR player'. Triggers include: 'clash royale', 'CR deck', 'war decks', 'card deck', 'clash royale player', 'CR cards', 'evo', 'hero cards'."
+description: "This skill fetches and analyzes a Clash Royale player's full card collection via the official API, generates formatted card deck reports, builds optimized war decks with synergy-first strategy, and builds best decks (4 different archetypes where cards can repeat). This skill should be used when the user mentions 'Clash Royale', 'CR deck', 'war decks', 'best decks', 'card collection', 'clash royale cards', or 'CR player'. Triggers include: 'clash royale', 'CR deck', 'war decks', 'best decks', 'card deck', 'clash royale player', 'CR cards', 'evo', 'hero cards'."
 license: Proprietary
 compatibility: "Requires Python 3.10+, curl, and a valid Clash Royale API token stored at ~/.cr_token. Token can be generated at https://developer.clashroyale.com"
 runtimes:
   - kiro
 metadata:
-  version: "0.4.0"
-  short_description: "Fetch CR player cards and build meta-informed war decks"
+  version: "0.6.0"
+  short_description: "Fetch CR player cards and build meta-informed war decks and best decks"
 ---
 
 # Clash Royale Deck Builder
 
 ## Purpose
 
-Fetch a Clash Royale player's full card collection from the official API, generate formatted reports showing card levels, evolution status, and hero status, and build optimized war decks prioritizing synergy and current meta.
+Fetch a Clash Royale player's full card collection from the official API, generate formatted reports showing card levels, evolution status, and hero status, build optimized war decks prioritizing synergy and current meta, and build best decks (4 different archetypes where cards can repeat across decks).
 
 ## When to Use
 
@@ -22,6 +22,7 @@ Activate when the user wants to:
 - View a Clash Royale player's card collection
 - Generate a formatted card deck report
 - Build optimized war decks for Clan War
+- Build best decks (4 archetypes, cards can repeat across decks)
 - Analyze which evos and heroes a player has unlocked
 
 ## Configuration
@@ -127,11 +128,19 @@ The report is a self-contained HTML file styled after the Clash Royale in-game U
 
 Build 4 war decks incorporating meta findings and player card data.
 
-Run `scripts/build_war_decks.py` for card analysis reference:
+Run `scripts/build_decks.py --mode war` for card analysis reference:
 
 ```bash
-python ~/.kiro/skills/clash-royale-deck-builder/scripts/build_war_decks.py --input cr_player_data.json
+python ~/.kiro/skills/clash-royale-deck-builder/scripts/build_decks.py --mode war --input cr_player_data.json
 ```
+
+Then generate the HTML report:
+
+```bash
+python ~/.kiro/skills/clash-royale-deck-builder/scripts/generate_decks_html.py --mode war --input cr_player_data.json
+```
+
+Legacy wrappers `build_war_decks.py` and `generate_war_decks_html.py` still work for backward compatibility.
 
 The agent MUST:
 1. Incorporate meta findings from Step 0
@@ -148,6 +157,47 @@ The user may request specific cards to be included. When this happens:
 - Treat as hard requirements — requested cards MUST appear in one of the 4 decks
 - Build synergistic decks around the requested cards first
 - Then fill remaining decks with the best available cards
+
+This applies to both war decks (Step 3) and best decks (Step 4).
+
+### 4. Build Best Decks
+
+Build 4 best decks with different archetypes. Unlike war decks, cards CAN repeat across decks. This mode focuses purely on building the strongest possible decks for the player regardless of card overlap.
+
+Run `scripts/build_decks.py --mode best` for card analysis reference:
+
+```bash
+python ~/.kiro/skills/clash-royale-deck-builder/scripts/build_decks.py --mode best --input cr_player_data.json
+```
+
+Then generate the HTML report:
+
+```bash
+python ~/.kiro/skills/clash-royale-deck-builder/scripts/generate_decks_html.py --mode best --input cr_player_data.json
+```
+
+Both scripts also accept `--decks <file.json>` to pass custom deck definitions (agent-generated from meta analysis). Legacy wrappers `build_best_decks.py` and `generate_best_decks_html.py` still work for backward compatibility.
+
+#### Key Differences from War Decks
+
+| Aspect | War Decks (Step 3) | Best Decks (Step 4) |
+|--------|-------------------|---------------------|
+| Card overlap | No card can repeat across decks | Cards CAN repeat across decks |
+| Purpose | Clan War (need 4 unique decks) | General play (strongest possible decks) |
+| Output file | `clash-royale-war-decks-{TAG}.html` | `clash-royale-best-decks-{TAG}.html` |
+| Shared cards section | N/A | Shows which cards appear in multiple decks |
+
+The agent MUST:
+1. Incorporate meta findings from Step 0
+2. Use 4 different archetypes (e.g., Beatdown, Bait, Bridge Spam, Cycle)
+3. Prioritize the player's highest-level cards across all decks
+4. Allow the same card in multiple decks when it fits the archetype
+5. Include a "Shared Cards Across Decks" section showing cards used in 2+ decks
+6. Each deck still has 3 evo/hero slots (1 Hero + 1 Evo + 1 Flex)
+
+#### Running Only Best Decks
+
+The user can request only the best decks report without generating war decks. When the user asks for "best decks" specifically (not "war decks"), run only Steps 0, 1, and 4. Skip Step 3 entirely.
 
 ## Key Domain Knowledge
 
